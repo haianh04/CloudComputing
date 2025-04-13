@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Sản phẩm</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    .product-card {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .product-description {
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      transition: 0.3s ease;
+      min-height: 60px;
+    }
+
+    .product-description.expanded {
+      -webkit-line-clamp: unset;
+    }
+
+    .line {
+      min-height: 24px;
+      margin-bottom: 4px;
+    }
+
+    /* Mũi tên đen rõ ràng */
+    .carousel-control-prev-icon,
+    .carousel-control-next-icon {
+      background-image: none;
+    }
+
+    .carousel-control-prev-icon::after,
+    .carousel-control-next-icon::after {
+      content: '';
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: solid black;
+      border-width: 0 3px 3px 0;
+      padding: 4px;
+    }
+
+    .carousel-control-prev-icon::after {
+      transform: rotate(135deg);
+    }
+
+    .carousel-control-next-icon::after {
+      transform: rotate(-45deg);
+    }
+
+  </style>
+</head>
+<body>
+  {% include 'navbar.html' %}
+
+  <div class="container my-4">
+
+    <!-- Tìm kiếm -->
+    <form method="get" class="mb-4">
+      <input type="text" name="q" class="form-control form-control-lg" placeholder="🔍 Tìm sản phẩm..." value="{{ keyword }}">
+    </form>
+
+    <!-- Bộ lọc -->
+    <form method="get" class="row g-2 mb-4 align-items-end">
+      <div class="col-md-3">
+        <select name="category" class="form-select">
+          <option value="">Tất cả danh mục</option>
+          {% for cat in categories %}
+            <option value="{{ cat }}" {% if category == cat %}selected{% endif %}>{{ cat }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <input type="number" step="0.01" name="min_price" class="form-control" placeholder="Giá từ" value="{{ min_price or '' }}">
+      </div>
+      <div class="col-md-2">
+        <input type="number" step="0.01" name="max_price" class="form-control" placeholder="Giá đến" value="{{ max_price or '' }}">
+      </div>
+      <div class="col-md-2">
+        <select name="min_rating" class="form-select">
+          <option value="">Đánh giá từ</option>
+          {% for r in range(1, 6) %}
+            <option value="{{ r }}" {% if min_rating and min_rating == r %}selected{% endif %}>Từ {{ r }} ⭐</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <select name="sort" class="form-select">
+          <option value="">Sắp xếp</option>
+          <option value="price_asc" {% if sort_by == 'price_asc' %}selected{% endif %}>Giá tăng dần</option>
+          <option value="price_desc" {% if sort_by == 'price_desc' %}selected{% endif %}>Giá giảm dần</option>
+          <option value="rating_desc" {% if sort_by == 'rating_desc' %}selected{% endif %}>Đánh giá cao</option>
+        </select>
+      </div>
+      <div class="col-md-1">
+        <button class="btn btn-primary w-100">Lọc</button>
+      </div>
+      <div class="col-md-1">
+        <a href="/" class="btn btn-secondary w-100">🔄 Reset</a>
+      </div>
+    </form>
+
+    <!-- Danh sách sản phẩm -->
+    <div class="row row-cols-1 row-cols-md-4 g-4">
+      {% for product in products %}
+      <div class="col">
+        <div class="card product-card shadow-sm h-100 d-flex flex-column">
+          {% if product.productImages %}
+          <div id="carousel-{{ product._id }}" class="carousel slide" data-bs-interval="false">
+            <div class="carousel-inner">
+              {% for img in product.productImages %}
+              <div class="carousel-item {% if loop.index0 == 0 %}active{% endif %}">
+                <img src="{{ img }}" class="d-block w-100" style="height: 180px; object-fit: cover;">
+              </div>
+              {% endfor %}
+            </div>
+            {% if product.productImages|length > 1 %}
+              <button class="carousel-control-prev" type="button" data-bs-target="#carousel-{{ product._id }}" data-bs-slide="prev">
+                <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+                <span class="visually-hidden">Previous</span>
+              </button>
+              <button class="carousel-control-next" type="button" data-bs-target="#carousel-{{ product._id }}" data-bs-slide="next">
+                <span class="carousel-control-next-icon" aria-hidden="true"></span>
+                <span class="visually-hidden">Next</span>
+              </button>
+            {% endif %}
+          </div>
+          {% endif %}
+          <div class="card-body d-flex flex-column">
+            <h5 class="card-title">{{ product.productName }}</h5>
+            <div class="line"><strong>SKU:</strong> {{ product.sku }}</div>
+            <div class="line"><strong>Danh mục:</strong> {{ product.category }}</div>
+            <div class="line"><strong>Giá gốc:</strong> {{ product.price.list or "đ" }} đ</div>
+            <div class="line"><strong>Giá sale:</strong> {{ product.price.sale or "đ" }} đ</div>
+            <div class="line">
+              <strong>Đánh giá:</strong>
+              {% if product.reviews and product.reviews.averageReviewScore %}
+                {{ product.reviews.averageReviewScore }} ⭐
+              {% else %}
+                Chưa có đánh giá
+              {% endif %}
+            </div>
+            <p class="product-description" id="desc-{{ product._id }}">{{ product.description }}</p>
+            <button class="btn btn-link px-0 mb-2" onclick="toggleDescription('{{ product._id }}', this)">Xem thêm</button>
+            <button class="btn btn-success mt-auto" onclick="addToCart('{{ product._id }}')">🛒 Thêm vào giỏ hàng</button>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <!-- Phân trang -->
+    {% set filters = "" %}
+    {% if category %}{% set filters = filters ~ "&category=" ~ category %}{% endif %}
+    {% if min_price %}{% set filters = filters ~ "&min_price=" ~ min_price %}{% endif %}
+    {% if max_price %}{% set filters = filters ~ "&max_price=" ~ max_price %}{% endif %}
+    {% if keyword %}{% set filters = filters ~ "&q=" ~ keyword %}{% endif %}
+    {% if min_rating %}{% set filters = filters ~ "&min_rating=" ~ min_rating %}{% endif %}
+    {% if sort_by %}{% set filters = filters ~ "&sort=" ~ sort_by %}{% endif %}
+
+    <nav class="mt-4">
+      <ul class="pagination justify-content-center flex-wrap">
+        {% if page > 1 %}
+          <li class="page-item"><a class="page-link" href="?page=1{{ filters }}">«</a></li>
+          <li class="page-item"><a class="page-link" href="?page={{ page-1 }}{{ filters }}">‹</a></li>
+        {% endif %}
+        {% for p in range(max(1, page-2), min(total_pages+1, page+3)) %}
+          <li class="page-item {% if p == page %}active{% endif %}"><a class="page-link" href="?page={{ p }}{{ filters }}">{{ p }}</a></li>
+        {% endfor %}
+        {% if page < total_pages %}
+          <li class="page-item"><a class="page-link" href="?page={{ page+1 }}{{ filters }}">›</a></li>
+          <li class="page-item"><a class="page-link" href="?page={{ total_pages }}{{ filters }}">»</a></li>
+        {% endif %}
+      </ul>
+    </nav>
+  </div>
+
+  <!-- Toast -->
+  <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 9999">
+    <div id="toast-cart" class="toast align-items-center text-bg-success border-0" role="alert">
+      <div class="d-flex">
+        <div class="toast-body">✅ Đã thêm vào giỏ hàng!</div>
+        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Script -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    function addToCart(productId) {
+      fetch("/add_to_cart", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ product_id: productId })
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          const toast = new bootstrap.Toast(document.getElementById('toast-cart'));
+          toast.show();
+          const cartCount = document.getElementById('cart-count');
+          if (cartCount) {
+            let current = parseInt(cartCount.textContent);
+            cartCount.textContent = current + 1;
+          }
+        }
+      });
+    }
+
+    function toggleDescription(id, btn) {
+      const desc = document.getElementById("desc-" + id);
+      desc.classList.toggle("expanded");
+      btn.textContent = desc.classList.contains("expanded") ? "Ẩn bớt" : "Xem thêm";
+    }
+
+    // Hover chuyển ảnh sau 4s
+    document.addEventListener("DOMContentLoaded", () => {
+      const carousels = document.querySelectorAll(".carousel");
+
+      carousels.forEach(carousel => {
+        let interval;
+        carousel.addEventListener("mouseenter", () => {
+          interval = setInterval(() => {
+            const bsCarousel = bootstrap.Carousel.getInstance(carousel);
+            bsCarousel && bsCarousel.next();
+          }, 4000);
+        });
+        carousel.addEventListener("mouseleave", () => {
+          clearInterval(interval);
+        });
+      });
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Giỏ hàng</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    .description {
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+    }
+    .description.expanded {
+      -webkit-line-clamp: unset;
+    }
+  </style>
+</head>
+<body>
+  {% include 'navbar.html' %}
+
+  <div class="container my-4">
+    <h2 class="mb-4 fs-3">🛒 Giỏ hàng của bạn</h2>
+
+    {% if cart_items %}
+    <form id="checkout-form" method="POST" action="/checkout">
+      <div class="table-responsive">
+        <table class="table table-bordered align-middle text-center">
+          <thead class="table-light">
+            <tr>
+              <th>Chọn</th>
+              <th>Hình ảnh</th>
+              <th>Tên sản phẩm</th>
+              <th>Giá</th>
+              <th>Số lượng</th>
+              <th>Mô tả</th>
+              <th>Tổng</th>
+              <th>Hành động</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in cart_items %}
+            <tr id="row-{{ item._id }}">
+              <td>
+                <input type="checkbox" class="product-check" name="checkout_ids" value="{{ item._id }}"
+                  data-price="{{ item.price.sale }}" data-quantity="{{ item.quantity }}" onchange="updateTotal()">
+              </td>
+              <td>
+                {% if item.image_url %}
+                <img src="{{ item.image_url }}" style="height: 80px; object-fit: cover;">
+                {% endif %}
+              </td>
+              <td>{{ item.name }}</td>
+              <td>{{ item.price.sale }} đ</td>
+              <td>
+                <div class="d-flex justify-content-center align-items-center">
+                  <button onclick="changeQuantity('{{ item._id }}', -1)" type="button" class="btn btn-outline-secondary btn-sm">−</button>
+                  <input type="text" id="qty-{{ item._id }}" value="{{ item.quantity }}" readonly class="mx-2 text-center" style="width: 40px;">
+                  <button onclick="changeQuantity('{{ item._id }}', 1)" type="button" class="btn btn-outline-secondary btn-sm">+</button>
+                </div>
+              </td>
+              <td class="text-start">
+                <p class="description" id="desc-{{ item._id }}">{{ item.description }}</p>
+                <button type="button" class="btn btn-link p-0" onclick="toggleDescription(this, '{{ item._id }}')">Xem thêm</button>
+              </td>
+              <td id="total-{{ item._id }}">{{ item.total | round(2) }} đ</td>
+              <td>
+                <button class="btn btn-danger btn-sm" type="button" onclick="removeFromCart('{{ item._id }}')">Xoá</button>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="d-flex justify-content-between align-items-center mt-4">
+        <h5>Tổng tiền đã chọn: <strong id="total-price">0 đ</strong></h5>
+        <button type="submit" class="btn btn-warning btn-lg">✅ Thanh toán</button>
+      </div>
+    </form>
+    {% else %}
+    <p>Giỏ hàng trống.</p>
+    {% endif %}
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    function toggleDescription(btn, id) {
+      const desc = document.getElementById("desc-" + id);
+      desc.classList.toggle("expanded");
+      btn.textContent = desc.classList.contains("expanded") ? "Ẩn bớt" : "Xem thêm";
+    }
+
+    function updateTotal() {
+      let checkboxes = document.querySelectorAll(".product-check:checked");
+      let total = 0;
+      checkboxes.forEach(cb => {
+        let price = parseFloat(cb.dataset.price);
+        let qty = parseInt(cb.dataset.quantity);
+        total += price * qty;
+      });
+      document.getElementById("total-price").innerText = total.toFixed(2) + " đ";
+    }
+
+    function removeFromCart(productId) {
+      fetch("/remove_from_cart", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ product_id: productId })
+      })
+        .then(res => {
+          if (res.ok) {
+            document.getElementById("row-" + productId).remove();
+            const cartCount = document.getElementById("cart-count");
+            if (cartCount) {
+              let current = parseInt(cartCount.textContent);
+              cartCount.textContent = Math.max(current - 1, 0);
+            }
+            updateTotal();
+          }
+        });
+    }
+
+    function changeQuantity(productId, delta) {
+      fetch("/update_quantity_ajax", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ product_id: productId, delta: delta })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          const qtyInput = document.getElementById("qty-" + productId);
+          qtyInput.value = data.new_quantity;
+
+          // cập nhật checkbox quantity
+          const checkbox = document.querySelector(`input[name='checkout_ids'][value='${productId}']`);
+          if (checkbox) {
+            checkbox.setAttribute("data-quantity", data.new_quantity);
+          }
+
+          updateTotal();
+        }
+      });
+    }
+  </script>
+</body>
+</html>
