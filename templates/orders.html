@@ -1,0 +1,117 @@
+{% extends "base.html" %} 
+{% block content %}
+<h2>Đơn hàng của bạn</h2>
+
+{% if orders %}
+  {% for order in orders %}
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5>Đơn hàng #{{ order["_id"] }}</h5>
+        <p>
+          <strong>Trạng thái:</strong>
+          {% set status_translations = {
+            "cho_xac_nhan": "Chờ xác nhận",
+            "cho_lay_hang": "Chờ lấy hàng",
+            "cho_giao_hang": "Chờ giao hàng",
+            "danh_gia": "Đánh giá",
+            "hoan_thanh": "Hoàn thành",
+            "da_huy": "Đã huỷ"
+          } %}
+          {{ status_translations[order["status"]] if order["status"] in status_translations else order["status"] }}
+        </p>
+
+        {% if order["countdown"] %}
+          <p><strong>Thời gian còn lại:</strong> <span class="countdown" data-deadline="{{ order['countdown'] }}"></span></p>
+        {% endif %}
+
+        <ul class="list-unstyled">
+          {% for item in order["items"] %}
+            <li class="d-flex align-items-center mb-3">
+              {% if item.productImages and item.productImages[0] %}
+                <img src="{{ item.productImages[0] }}" alt="{{ item.name }}" style="width: 60px; height: 60px; object-fit: cover; margin-right: 10px;">
+              {% else %}
+                <div style="width: 60px; height: 60px; background-color: #eee; margin-right: 10px;"></div>
+              {% endif %}
+              <div>
+                <strong>{{ item["name"] }}</strong><br>
+                Số lượng: {{ item["quantity"] }}
+              </div>
+            </li>
+          {% endfor %}
+        </ul>
+
+        <ul class="list-unstyled">  
+          {% for item in order["items"] %}
+            <li class="d-flex align-items-center mb-3">
+              {% set image_displayed = false %}
+              {% for image_url in item.productImages %}
+                {% if not image_displayed %}
+                  <!-- Thử hiển thị ảnh đầu tiên và thêm fallback -->
+                  <img src="{{ image_url }}" alt="{{ item.name }}" style="width: 60px; height: 60px; object-fit: cover; margin-right: 10px;" 
+                    onerror="this.onerror=null; this.src='path_to_default_image.jpg';" onload="this.style.display='block';">
+                  {% set image_displayed = true %}
+                {% endif %}
+              {% endfor %}
+            </li>
+          {% endfor %}
+        </ul>
+
+        <p><strong>Tổng tiền:</strong> {{ order["total_price"] }} đồng</p>
+
+        {% if order["status"] == "cho_xac_nhan" %}
+          <form action="{{ url_for('cancel_order') }}" method="POST" style="display: inline;">
+            <input type="hidden" name="order_id" value="{{ order['_id'] }}">
+            <button type="submit" class="btn btn-danger">Huỷ đơn</button>
+          </form>
+        {% endif %}
+
+        {% if order["status"] == "danh_gia" %}
+          <a href="{{ url_for('review', order_id=order['_id']) }}" class="btn btn-primary">Đánh giá</a>
+        {% elif order["status"] == "hoan_thanh" %}
+          <span class="text-success">Đã hoàn thành</span>
+          <form action="{{ url_for('reorder') }}" method="POST" style="display: inline;">
+            <input type="hidden" name="order_id" value="{{ order['_id'] }}">
+            <button type="submit" class="btn btn-outline-primary">Mua lại</button>
+          </form>
+        {% elif order["status"] == "da_huy" %}
+          <span class="text-muted">Đã huỷ</span>
+          <form action="{{ url_for('reorder') }}" method="POST" style="display: inline;">
+            <input type="hidden" name="order_id" value="{{ order['_id'] }}">
+            <button type="submit" class="btn btn-outline-primary">Mua lại</button>
+          </form>
+        {% elif order["status"] == "cho_thanh_toan" %}
+          <form action="{{ url_for('checkout') }}" method="POST">
+            <input type="hidden" name="order_id" value="{{ order['_id'] }}">
+            <button type="submit" class="btn btn-success">Thanh toán</button>
+          </form>
+        {% endif %}
+      </div>
+    </div>
+  {% endfor %}
+{% else %}
+  <p>Không có đơn hàng nào.</p>
+{% endif %}
+
+<script>
+  function updateCountdowns() {
+    const elements = document.querySelectorAll('.countdown');
+    elements.forEach(function(el) {
+      const deadline = new Date(el.dataset.deadline);
+      const now = new Date();
+      const diff = deadline - now;
+
+      if (diff > 0) {
+        const hours = Math.floor(diff / (1000 * 60 * 60));
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+        el.textContent = `${hours}h ${minutes}m ${seconds}s`;
+      } else {
+        el.textContent = "Hết thời gian";
+      }
+    });
+  }
+
+  setInterval(updateCountdowns, 1000);
+  updateCountdowns();
+</script>
+{% endblock %}

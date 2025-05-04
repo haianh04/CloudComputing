@@ -1,8 +1,9 @@
-# app.py - Phiên bản nâng cấp UI/UX phù hợp giao diện mới
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash
 from pymongo import MongoClient
 from bson.objectid import ObjectId
 from werkzeug.security import generate_password_hash, check_password_hash
+from datetime import datetime, timedelta
+from apscheduler.schedulers.background import BackgroundScheduler
 
 app = Flask(__name__)
 app.secret_key = "supersecretkey"
@@ -12,6 +13,7 @@ db = client["product"]
 collection = db["product"]
 user_db = client["auth"]
 users_collection = user_db["users"]
+orders_collection = db["orders"]
 
 def get_product_by_id(product_id):
     try:
@@ -69,7 +71,6 @@ def index():
         product["image_url"] = product.get("productImages", [None])[0]
 
     categories = sorted({c for c in collection.distinct("category") if c and c.strip()})
-
     return render_template("index.html", products=products, page=page, total_pages=total_pages,
                            category=category, min_price=min_price, max_price=max_price,
                            categories=categories, keyword=keyword, min_rating=min_rating,
@@ -171,22 +172,109 @@ def clear_cart():
     flash("Đã xóa toàn bộ giỏ hàng", "info")
     return redirect(url_for("view_cart"))
 
-@app.route("/checkout", methods=["POST"])
+@app.route("/checkout", methods=["POST"]) 
 def checkout():
-    if "user" not in session:
+    if "user" not in session or not session["user"].get("email"):
         flash("Bạn cần đăng nhập để thanh toán", "warning")
         return redirect(url_for("login"))
 
     selected_ids = request.form.getlist("checkout_ids")
+    if not selected_ids:
+        flash("Vui lòng chọn sản phẩm để thanh toán", "warning")
+        return redirect(url_for("view_cart"))
+
     user_email = session["user"]["email"]
     user = users_collection.find_one({"email": user_email})
     cart = user.get("cart", {})
+
+    purchased_items = []
+    total_price = 0
     for product_id in selected_ids:
-        if product_id in cart:
-            del cart[product_id]
+        item = cart.get(product_id)
+        if not item:
+            continue
+        sale_price = float(item["price"].get("sale", 0))
+        quantity = item.get("quantity", 1)
+        purchased_items.append({
+            "product_id": product_id,
+            "name": item["name"],
+            "price": item["price"],
+            "quantity": quantity,
+            "image_url": item.get("image_url", "")
+        })
+        total_price += sale_price * quantity
+        cart.pop(product_id, None)
+
     users_collection.update_one({"email": user_email}, {"$set": {"cart": cart}})
-    flash("Thanh toán thành công cho các sản phẩm đã chọn!", "success")
-    return redirect(url_for("view_cart"))
+
+    now = datetime.utcnow()
+    order_data = {
+        "order_id": str(ObjectId()),
+        "user_email": user_email,
+        "items": purchased_items,
+        "total_price": round(total_price, 2),
+        "status": "cho_xac_nhan",
+        "status_timestamps": {
+            "cho_xac_nhan": now,
+            "cho_lay_hang": now + timedelta(hours=1),
+            "cho_giao_hang": now + timedelta(days=1),
+            "danh_gia": now + timedelta(days=3),
+            "hoan_thanh": now + timedelta(days=5)
+        },
+        "countdown": (now + timedelta(hours=1)).isoformat(),
+        "created_at": now
+    }
+
+    orders_collection.insert_one(order_data)
+    flash("Thanh toán thành công!", "success")
+    return redirect(url_for("orders"))
+
+@app.route("/orders")
+def orders():
+    if "user" not in session:
+        return redirect(url_for("login"))
+    email = session["user"]["email"]
+    orders = list(orders_collection.find({"user_email": email}))
+    return render_template("orders.html", orders=orders)
+
+@app.route("/review/<order_id>", methods=["GET", "POST"])
+def review(order_id):
+    if "user" not in session:
+        return redirect(url_for("login"))
+
+    order = orders_collection.find_one({"_id": ObjectId(order_id)})
+    if not order or order.get("status") != "danh_gia":
+        flash("Không thể đánh giá đơn hàng này.", "warning")
+        return redirect(url_for("orders"))
+
+    if request.method == "POST":
+        for item in order["items"]:
+            product_id = item["product_id"]
+            rating = int(request.form.get(f"rating_{product_id}", 0))
+            comment = request.form.get(f"comment_{product_id}", "").strip()
+            if rating > 0:
+                collection.update_one({"_id": ObjectId(product_id)}, {
+                    "$push": {
+                        "reviews.data": {
+                            "user": session["user"]["email"],
+                            "rating": rating,
+                            "comment": comment,
+                            "created_at": datetime.utcnow()
+                        }
+                    }
+                })
+                reviews = collection.find_one({"_id": ObjectId(product_id)}).get("reviews", {}).get("data", [])
+                if reviews:
+                    avg_rating = round(sum(r["rating"] for r in reviews) / len(reviews), 2)
+                    collection.update_one({"_id": ObjectId(product_id)}, {
+                        "$set": {"reviews.averageReviewScore": avg_rating}
+                    })
+
+        orders_collection.update_one({"_id": order["_id"]}, {"$set": {"status": "hoan_thanh"}})
+        flash("Đánh giá thành công!", "success")
+        return redirect(url_for("orders"))
+
+    return render_template("review.html", order=order)
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
@@ -224,6 +312,31 @@ def logout():
     session.pop("user", None)
     flash("Đã đăng xuất", "info")
     return redirect(url_for("login"))
+
+# Background Job: Update order statuses
+def update_order_statuses():
+    now = datetime.utcnow()
+    for order in orders_collection.find({}):
+        status = order.get("status", "cho_xac_nhan")
+        timestamps = order.get("status_timestamps", {"cho_xac_nhan": order["created_at"]})
+        updates = {}
+
+        if status == "cho_xac_nhan" and now - timestamps["cho_xac_nhan"] > timedelta(hours=1):
+            updates["status"] = "cho_lay_hang"
+            updates["status_timestamps.cho_lay_hang"] = now
+        elif status == "cho_lay_hang" and now - timestamps.get("cho_lay_hang", now) > timedelta(days=2):
+            updates["status"] = "dang_giao"
+            updates["status_timestamps.dang_giao"] = now
+        elif status == "dang_giao" and now - timestamps.get("dang_giao", now) > timedelta(days=4):
+            updates["status"] = "danh_gia"
+            updates["status_timestamps.danh_gia"] = now
+
+        if updates:
+            orders_collection.update_one({"_id": order["_id"]}, {"$set": updates})
+
+scheduler = BackgroundScheduler()
+scheduler.add_job(update_order_statuses, "interval", minutes=10)
+scheduler.start()
 
 if __name__ == "__main__":
     app.run(debug=True)

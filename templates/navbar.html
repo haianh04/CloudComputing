@@ -6,6 +6,7 @@
       <a class="fs-5 text-decoration-none text-dark" href="{{ url_for('view_cart') }}">
         🛒 Giỏ hàng (<span id="cart-count">{{ cart_count }}</span>)
       </a>
+      <a class="fs-5 text-decoration-none text-dark" href="{{ url_for('orders') }}">📦 Đơn mua</a>      
       {% if session.get("user") %}
         {% set user_email = session['user']['email'] %}
         {% set username = user_email.split('@')[0] %}

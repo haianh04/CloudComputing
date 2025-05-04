@@ -1,0 +1,80 @@
+{% extends "base.html" %} 
+{% block content %}
+<h2>Đánh giá đơn hàng</h2>
+
+{% if order["items"] %}
+<form method="POST">
+  {% for item in order["items"] %}
+    <div class="card mb-4 p-3">
+      <div class="d-flex align-items-start">
+        {% if item.image_url %}
+          <img src="{{ item.image_url }}" alt="{{ item.name }}" style="width: 100px; height: 100px; object-fit: cover; margin-right: 15px;">
+        {% endif %}
+        <div class="flex-grow-1">
+          <h5>{{ item.name }}</h5>
+
+          <!-- Rating bằng sao -->
+          <div class="star-rating" data-product-id="{{ item.product_id }}">
+            {% for i in range(1, 6) %}
+              <span class="star" data-value="{{ i }}">&#9734;</span>
+            {% endfor %}
+            <input type="hidden" name="rating_{{ item.product_id }}" required>
+          </div>
+
+          <!-- Bình luận -->
+          <textarea name="comment_{{ item.product_id }}" placeholder="Viết nhận xét..." rows="3" class="form-control mt-2"></textarea>
+        </div>
+      </div>
+    </div>
+  {% endfor %}
+  <button type="submit" class="btn btn-success">Gửi đánh giá</button>
+</form>
+{% else %}
+<p>Không có sản phẩm nào để đánh giá.</p>
+{% endif %}
+
+<!-- CSS cho sao -->
+<style>
+  .star-rating .star {
+    font-size: 24px;
+    color: gray;
+    cursor: pointer;
+  }
+  .star-rating .star.selected {
+    color: gold;
+  }
+</style>
+
+<!-- JavaScript để xử lý click vào sao -->
+<script>
+  document.querySelectorAll('.star-rating').forEach(function(ratingBlock) {
+    const stars = ratingBlock.querySelectorAll('.star');
+    const input = ratingBlock.querySelector('input[type="hidden"]');
+    
+    stars.forEach(function(star) {
+      star.addEventListener('click', function() {
+        const value = this.dataset.value;
+        input.value = value;
+
+        stars.forEach((s, i) => {
+          if (i < value) s.classList.add('selected');
+          else s.classList.remove('selected');
+        });
+      });
+
+      star.addEventListener('mouseover', function() {
+        const hoverValue = this.dataset.value;
+        stars.forEach((s, i) => {
+          s.style.color = i < hoverValue ? 'gold' : 'gray';
+        });
+      });
+      star.addEventListener('mouseout', function() {
+        const currentValue = input.value;
+        stars.forEach((s, i) => {
+          s.style.color = i < currentValue ? 'gold' : 'gray';
+        });
+      });
+    });
+  });
+</script>
+{% endblock %}
