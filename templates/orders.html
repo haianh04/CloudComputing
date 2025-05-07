@@ -20,10 +20,6 @@
           {{ status_translations[order["status"]] if order["status"] in status_translations else order["status"] }}
         </p>
 
-        {% if order["countdown"] %}
-          <p><strong>Thời gian còn lại:</strong> <span class="countdown" data-deadline="{{ order['countdown'] }}"></span></p>
-        {% endif %}
-
         <ul class="list-unstyled">
           {% for item in order["items"] %}
             <li class="d-flex align-items-center mb-3">
@@ -40,30 +36,7 @@
           {% endfor %}
         </ul>
 
-        <ul class="list-unstyled">  
-          {% for item in order["items"] %}
-            <li class="d-flex align-items-center mb-3">
-              {% set image_displayed = false %}
-              {% for image_url in item.productImages %}
-                {% if not image_displayed %}
-                  <!-- Thử hiển thị ảnh đầu tiên và thêm fallback -->
-                  <img src="{{ image_url }}" alt="{{ item.name }}" style="width: 60px; height: 60px; object-fit: cover; margin-right: 10px;" 
-                    onerror="this.onerror=null; this.src='path_to_default_image.jpg';" onload="this.style.display='block';">
-                  {% set image_displayed = true %}
-                {% endif %}
-              {% endfor %}
-            </li>
-          {% endfor %}
-        </ul>
-
         <p><strong>Tổng tiền:</strong> {{ order["total_price"] }} đồng</p>
-
-        {% if order["status"] == "cho_xac_nhan" %}
-          <form action="{{ url_for('cancel_order') }}" method="POST" style="display: inline;">
-            <input type="hidden" name="order_id" value="{{ order['_id'] }}">
-            <button type="submit" class="btn btn-danger">Huỷ đơn</button>
-          </form>
-        {% endif %}
 
         {% if order["status"] == "danh_gia" %}
           <a href="{{ url_for('review', order_id=order['_id']) }}" class="btn btn-primary">Đánh giá</a>

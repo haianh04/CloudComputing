@@ -217,25 +217,25 @@ def checkout():
         "status_timestamps": {
             "cho_xac_nhan": now,
             "cho_lay_hang": now + timedelta(hours=1),
-            "cho_giao_hang": now + timedelta(days=1),
-            "danh_gia": now + timedelta(days=3),
-            "hoan_thanh": now + timedelta(days=5)
+            "cho_giao_hang": now + timedelta(days=2),
+            "danh_gia": now + timedelta(days=6)
         },
-        "countdown": (now + timedelta(hours=1)).isoformat(),
         "created_at": now
     }
 
     orders_collection.insert_one(order_data)
-    flash("Thanh toán thành công!", "success")
+    flash("Đặt hàng thành công!", "success")
     return redirect(url_for("orders"))
 
 @app.route("/orders")
 def orders():
     if "user" not in session:
+        flash("Bạn cần đăng nhập để xem đơn hàng", "warning")
         return redirect(url_for("login"))
-    email = session["user"]["email"]
-    orders = list(orders_collection.find({"user_email": email}))
-    return render_template("orders.html", orders=orders)
+
+    user_email = session["user"]["email"]
+    user_orders = list(orders_collection.find({"user_email": user_email}))
+    return render_template("orders.html", orders=user_orders)
 
 @app.route("/review/<order_id>", methods=["GET", "POST"])
 def review(order_id):
