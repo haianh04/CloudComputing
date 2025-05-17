@@ -313,6 +313,12 @@ def logout():
     flash("Đã đăng xuất", "info")
     return redirect(url_for("login"))
 
+from datetime import datetime
+
+@app.context_processor
+def inject_now():
+    return {'current_year': datetime.now().year}
+
 # Background Job: Update order statuses
 def update_order_statuses():
     now = datetime.utcnow()
