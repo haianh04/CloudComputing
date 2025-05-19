@@ -74,7 +74,6 @@
       {% endif %}
       <div class="card-body d-flex flex-column">
         <h5 class="card-title">{{ product.productName }}</h5>
-        <div class="line"><strong>SKU:</strong> {{ product.sku }}</div>
         <div class="line"><strong>Danh mục:</strong> {{ product.category }}</div>
         <div class="line"><strong>Giá gốc:</strong> {{ product.price.list or "đ" }} đ</div>
         <div class="line"><strong>Giá sale:</strong> {{ product.price.sale or "đ" }} đ</div>
