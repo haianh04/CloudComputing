@@ -217,8 +217,8 @@ def checkout():
         "status_timestamps": {
             "cho_xac_nhan": now,
             "cho_lay_hang": now + timedelta(hours=1),
-            "cho_giao_hang": now + timedelta(days=2),
-            "danh_gia": now + timedelta(days=6)
+            "cho_giao_hang": now + timedelta(days=1),
+            "danh_gia": now + timedelta(days=2)
         },
         "created_at": now
     }
@@ -330,10 +330,10 @@ def update_order_statuses():
         if status == "cho_xac_nhan" and now - timestamps["cho_xac_nhan"] > timedelta(hours=1):
             updates["status"] = "cho_lay_hang"
             updates["status_timestamps.cho_lay_hang"] = now
-        elif status == "cho_lay_hang" and now - timestamps.get("cho_lay_hang", now) > timedelta(days=2):
+        elif status == "cho_lay_hang" and now - timestamps.get("cho_lay_hang", now) > timedelta(days=1):
             updates["status"] = "dang_giao"
             updates["status_timestamps.dang_giao"] = now
-        elif status == "dang_giao" and now - timestamps.get("dang_giao", now) > timedelta(days=4):
+        elif status == "dang_giao" and now - timestamps.get("dang_giao", now) > timedelta(days=2):
             updates["status"] = "danh_gia"
             updates["status_timestamps.danh_gia"] = now
 
